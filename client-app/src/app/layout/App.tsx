@@ -1,13 +1,17 @@
-import React, { Fragment, useState, useEffect } from "react";
+import React, { Fragment, useState, useEffect, SyntheticEvent } from "react";
 import { Container } from "semantic-ui-react";
-import axios from "axios";
 import { IActivity } from "./../models/activity";
 import { NavBar } from "../../features/nav/NavBar";
 import { ActivityDashboard } from "../../features/activities/dashboard/ActivityDashboard";
+import agent from "../api/agent";
+import { LoadingComponent } from "./LoadingComponent";
 
 const App = () => {
   const [activities, setActivities] = useState<IActivity[]>([]);
   const [editMode, setEditMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [target, setTarget] = useState("");
   const [selectedActivity, setSelectedActivity] = useState<IActivity | null>(
     null
   );
@@ -22,39 +26,52 @@ const App = () => {
     setEditMode(true);
   };
 
-  const handleCreateActivity = (activity: IActivity) => {
+  const handleCreateActivity = async (activity: IActivity) => {
+    setSubmitting(true);
+    await agent.Activities.create(activity);
     setActivities([...activities, activity]);
     setSelectedActivity(activity);
     setEditMode(false);
+    setSubmitting(false);
   };
 
-  const handleEditActivity = (activity: IActivity) => {
+  const handleEditActivity = async (activity: IActivity) => {
+    setSubmitting(true);
+    await agent.Activities.update(activity);
     setActivities([...activities.filter(a => a.id !== activity.id), activity]);
     setSelectedActivity(activity);
     setEditMode(false);
+    setSubmitting(false);
   };
 
-  const handleDeleteActivity = (id: string) => {
+  const handleDeleteActivity = async (
+    event: SyntheticEvent<HTMLButtonElement>,
+    id: string
+  ) => {
+    setSubmitting(true);
+    setTarget(event.currentTarget.name);
+    await agent.Activities.delete(id);
     setActivities([...activities.filter(a => a.id !== id)]);
+    setSubmitting(false);
   };
 
   useEffect(() => {
     // Create an scoped async function in the hook
     async function loadActivities() {
       let activities: IActivity[] = [];
-      const response = await axios.get<IActivity[]>(
-        "http://localhost:5000/api/activities"
-      );
-      response.data.forEach(activity => {
+      const response = await agent.Activities.list();
+      response.forEach(activity => {
         activity.date = activity.date.split(".")[0];
         activities.push(activity);
       });
       // const activities = response.data;
       setActivities(activities);
+      setLoading(false);
     }
-
     loadActivities();
   }, []);
+
+  if (loading) return <LoadingComponent content="Loading activities..." />;
 
   return (
     <Fragment>
@@ -70,6 +87,8 @@ const App = () => {
           createActivity={handleCreateActivity}
           editActivity={handleEditActivity}
           deleteActivity={handleDeleteActivity}
+          target={target}
+          submitting={submitting}
         />
       </Container>
     </Fragment>
